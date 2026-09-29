@@ -284,7 +284,11 @@ After building, you will find:
   `tauri-app/src-tauri/target/release/ollama-qwen-ui.exe`
 
 - **Windows installer:**
-  `tauri-app/src-tauri/target/release/bundle/nsis/Ollama Qwen Server_1.0.0_x64-setup.exe`
+  `tauri-app/src-tauri/target/release/bundle/nsis/LexiLocal UI_1.0.0_x64-setup.exe`
+
+The installer creates:
+- A Start Menu shortcut: **LexiLocal UI**
+- A desktop shortcut: **LexiLocal UI**
 
 ### Launch the built UI
 

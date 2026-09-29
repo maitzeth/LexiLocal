@@ -1,4 +1,4 @@
-# Tasks: Split the Tauri desktop app into its own repository (`CodexAstarte`)
+# Tasks: Split the Tauri desktop app into its own repository (`Codex-Astartes`)
 
 Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. Grouped by PR for chained delivery (~400 lines / PR review budget).
 
@@ -8,7 +8,7 @@ Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. 
 
 **Goal:** Move Tauri source to its own repo; clean the backend repo of desktop-app files.
 
-**Repos touched:** `LexiLocal` (slim down), `CodexAstarte` (new).
+**Repos touched:** `LexiLocal` (slim down), `Codex-Astartes` (new).
 
 ### Backend repo (`LexiLocal`)
 
@@ -18,18 +18,18 @@ Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. 
   - [ ] Remove the "Native Windows UI" section.
   - [ ] Remove `tauri-app/` from the Project Structure listing.
   - [ ] Remove references to `launch-ui.bat`, `toggle-server.ps1`, `create-desktop-shortcut.ps1`.
-  - [ ] Add a "Desktop UI" section linking to `CodexAstarte`.
-- [ ] Commit: `chore: extract tauri app into CodexAstarte repo`.
+  - [ ] Add a "Desktop UI" section linking to `Codex-Astartes`.
+- [ ] Commit: `chore: extract tauri app into Codex-Astartes repo`.
 
-### Desktop repo (`CodexAstarte`)
+### Desktop repo (`Codex-Astartes`)
 
-- [ ] Create `Documents/Projects/CodexAstarte/`.
-- [ ] Create new GitHub repo `maitzeth/CodexAstarte` (user action — paused until user confirms the repo exists).
+- [ ] Create `Documents/Projects/Codex-Astartes/`.
+- [ ] Create new GitHub repo `maitzeth/Codex-Astartes` (user action — paused until user confirms the repo exists).
 - [ ] `git init` inside the new folder.
-- [ ] Move all Tauri source files from `LexiLocal/tauri-app/` to `CodexAstarte/` (drop the `tauri-app/` prefix).
-- [ ] Move launcher scripts (`launch-ui.bat`, `launch-ui.ps1`, `toggle-server.ps1`, `toggle-server.bat`, `create-desktop-shortcut.ps1`) from `LexiLocal/` to `CodexAstarte/`.
+- [ ] Move all Tauri source files from `LexiLocal/tauri-app/` to `Codex-Astartes/` (drop the `tauri-app/` prefix).
+- [ ] Move launcher scripts (`launch-ui.bat`, `launch-ui.ps1`, `toggle-server.ps1`, `toggle-server.bat`, `create-desktop-shortcut.ps1`) from `LexiLocal/` to `Codex-Astartes/`.
 - [ ] Update `package.json`:
-  - [ ] Rename `name` to `codexastarte`.
+  - [ ] Rename `name` to `codex-astartes`.
   - [ ] Update `tauri.conf.json` reference paths (no change needed if we keep relative paths).
 - [ ] Set up `.gitignore` (Tauri/Vite/Rust ignore patterns).
 - [ ] Add a minimal `README.md` pointing to the proposal/spec for now; full README in PR 2.
@@ -38,7 +38,7 @@ Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. 
 
 **PR 1 verification:**
 - `LexiLocal` no longer contains `tauri-app/` (AC #1).
-- `CodexAstarte` builds with `npm run tauri:build` and produces a `.exe` (AC #2).
+- `Codex-Astartes` builds with `npm run tauri:build` and produces a `.exe` (AC #2).
 - Both repos pushed to GitHub (AC #10 partial).
 
 ---
@@ -47,13 +47,13 @@ Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. 
 
 **Goal:** Replace the path-heuristic in `main.rs` with a real, persistent TOML config. Build the sidebar shell with dark theme. Port existing panels (Chat, Translate, REST API, Activity Log, Settings) to the section model.
 
-**Repo:** `CodexAstarte`.
+**Repo:** `Codex-Astartes`.
 
 ### Rust
 
 - [ ] Add deps to `src-tauri/Cargo.toml`: `toml = "0.8"`, `chrono = { version = "0.4", features = ["clock"] }`, `tauri-plugin-clipboard-manager = "2"`, `tauri-plugin-dialog = "2"`.
 - [ ] Add JS deps to `package.json`: `@tauri-apps/plugin-clipboard-manager = "^2"`, `@tauri-apps/plugin-dialog = "^2"`.
-- [ ] Update `tauri.conf.json`: `productName = "CodexAstarte"`, `identifier = "com.codexastarte.app"`.
+- [ ] Update `tauri.conf.json`: `productName = "Codex-Astartes"`, `identifier = "com.codex-astartes.app"`.
 - [ ] Update `src-tauri/capabilities/default.json`: add `clipboard-manager:allow-read-text`, `clipboard-manager:allow-write-text`, `dialog:allow-open`.
 - [ ] Create `src-tauri/src/config.rs` with `Config` struct, `config_path()`, `load()`, `save()` (atomic tmp+rename), defaults per spec §2.3.
 - [ ] Create `src-tauri/src/server.rs` with `start`, `stop`, `status` functions using `config.server.dir` instead of `possible_server_dirs()`.
@@ -80,7 +80,7 @@ Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. 
 
 ### README
 
-- [ ] Write the real `CodexAstarte/README.md`: what it is, prerequisites, install, first-run setup, usage walkthrough of each sidebar section, `config.toml` reference, troubleshooting.
+- [ ] Write the real `Codex-Astartes/README.md`: what it is, prerequisites, install, first-run setup, usage walkthrough of each sidebar section, `config.toml` reference, troubleshooting.
 
 **PR 2 verification (AC #3, #4, #5):**
 - Delete `config.toml` next to a built `.exe`; launch → setup overlay appears; pick a valid backend dir → main UI renders (AC #3).
@@ -93,7 +93,7 @@ Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. 
 
 **Goal:** Add the Tools section with Windows clipboard history.
 
-**Repo:** `CodexAstarte`.
+**Repo:** `Codex-Astartes`.
 
 ### Rust
 
@@ -124,7 +124,7 @@ Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. 
 
 **Goal:** Add the second theme and the toggle in the sidebar.
 
-**Repo:** `CodexAstarte`.
+**Repo:** `Codex-Astartes`.
 
 ### Frontend
 
@@ -146,7 +146,7 @@ Concrete implementation tasks for `apply`. Each `- [ ]` line is a unit of work. 
 **Goal:** Walk through every acceptance criterion from the spec and verify.
 
 - [ ] AC #1: `find LexiLocal -name tauri-app -type d` returns nothing.
-- [ ] AC #2: `CodexAstarte` builds, installer creates Start Menu + Desktop shortcuts named **CodexAstarte**.
+- [ ] AC #2: `Codex-Astartes` builds, installer creates Start Menu + Desktop shortcuts named **Codex-Astartes**.
 - [ ] AC #3: First-launch setup screen flow.
 - [ ] AC #4: Start/Stop buttons.
 - [ ] AC #5: Base URL persists.
@@ -175,5 +175,5 @@ If PR 2 exceeds 400 lines after implementation, it will be split mid-apply into 
 ## Notes for `apply`
 
 - The user runs `npm run tauri:build` at the end of each PR that touches Tauri code. The apply phase will not run builds unless asked.
-- The user creates the GitHub repo `CodexAstarte` (one-time) before PR 1's final push.
+- The user creates the GitHub repo `Codex-Astartes` (one-time) before PR 1's final push.
 - Each PR is committed, pushed, and then `apply` pauses to let the user verify before moving to the next.

@@ -1,4 +1,4 @@
-# Proposal: Split the Tauri desktop app into its own repository (`CodexAstarte`)
+# Proposal: Split the Tauri desktop app into its own repository (`Codex-Astartes`)
 
 ## Context
 
@@ -21,17 +21,17 @@ This worked while the UI was a thin client of the backend. It no longer fits bec
 
 1. **The desktop app is becoming its own product.** It will grow personal-use features unrelated to the server (clipboard history, keyboard shortcuts, tray icon, etc.). Mixing those with backend code confuses contribution, releases, and versioning.
 2. **Release cadences diverge.** The backend ships when the API changes; the desktop app ships when the UI/UX changes. A monorepo forces synchronized commits.
-3. **The desktop app is portable.** Other people might use `CodexAstarte` against a different backend (Groq, OpenRouter, OpenAI). Coupling it to the Python repo makes that awkward.
+3. **The desktop app is portable.** Other people might use `Codex-Astartes` against a different backend (Groq, OpenRouter, OpenAI). Coupling it to the Python repo makes that awkward.
 4. **The user wants to extend the desktop app for personal use** (e.g., a Windows clipboard history tool inside a new `Tools` tab). That work should not pollute the backend repo's history.
 
 ## Goal
 
-Extract the Tauri desktop app into a separate repository (`CodexAstarte`) so it can be developed, versioned, and distributed independently from the backend. The two repos communicate over the OpenAI-compatible REST API the backend already exposes.
+Extract the Tauri desktop app into a separate repository (`Codex-Astartes`) so it can be developed, versioned, and distributed independently from the backend. The two repos communicate over the OpenAI-compatible REST API the backend already exposes.
 
 After this change:
 
 - **`LexiLocal`** repo = backend only (FastAPI server, run.sh, OpenAPI-compatible endpoints, server.env, README). Cleanly installable via `./run.sh start`.
-- **`CodexAstarte`** repo = the Tauri v2 desktop app, located at `Documents/Projects/CodexAstarte`. Buildable to a Windows `.exe`/NSIS installer. Can start/stop the backend locally and connect to it via REST.
+- **`Codex-Astartes`** repo = the Tauri v2 desktop app, located at `Documents/Projects/Codex-Astartes`. Buildable to a Windows `.exe`/NSIS installer. Can start/stop the backend locally and connect to it via REST.
 
 ## Non-goals (this change)
 
@@ -48,7 +48,7 @@ After this change:
 **Typical flow:**
 
 1. User installs the backend once (`git clone LexiLocal && ./run.sh pull && ./run.sh start`).
-2. User installs the desktop app once (`git clone CodexAstarte && npm run tauri:build`, then runs the produced `.exe`/installer).
+2. User installs the desktop app once (`git clone Codex-Astartes && npm run tauri:build`, then runs the produced `.exe`/installer).
 3. User configures the desktop app with the **path to the backend installation directory** (e.g., `C:\Users\andre\Documents\Projects\ollama-qwen-server`). Stored persistently.
 4. On launch, the desktop app shows server status (Online/Offline). Buttons let the user Start/Stop the server.
 5. The desktop app's base URL is editable (default `http://localhost:8000`), so it can also target a backend on another machine on the LAN — but that requires the backend firewall to be open on that other machine (out of scope here).
@@ -81,7 +81,7 @@ Documents/Projects/
 │   ├── server.env
 │   ├── README.md
 │   └── … (no tauri-app/)
-└── CodexAstarte/          ← CodexAstarte repo (new)
+└── Codex-Astartes/          ← Codex-Astartes repo (new)
     ├── package.json
     ├── vite.config.ts
     ├── index.html
@@ -104,15 +104,15 @@ Documents/Projects/
 
 1. **Delete `tauri-app/`** from the repo.
 2. **Move the toggle scripts and launcher scripts** that are desktop-app-oriented:
-   - `launch-ui.bat`, `launch-ui.ps1` → move to `CodexAstarte`.
-   - `toggle-server.ps1`, `toggle-server.bat` → move to `CodexAstarte` (still useful for users who want a CLI toggle without opening the GUI).
-   - `create-desktop-shortcut.ps1` → move to `CodexAstarte`.
+   - `launch-ui.bat`, `launch-ui.ps1` → move to `Codex-Astartes`.
+   - `toggle-server.ps1`, `toggle-server.bat` → move to `Codex-Astartes` (still useful for users who want a CLI toggle without opening the GUI).
+   - `create-desktop-shortcut.ps1` → move to `Codex-Astartes`.
 3. **Update `README.md`**:
    - Remove the "Native Windows UI" section (it lives in the other repo now).
-   - Add a short "Desktop UI" section that links to `CodexAstarte` with a one-liner install.
+   - Add a short "Desktop UI" section that links to `Codex-Astartes` with a one-liner install.
    - Update the project structure listing.
 
-### Desktop repo (`CodexAstarte`) initial contents
+### Desktop repo (`Codex-Astartes`) initial contents
 
 The Tauri app source moves verbatim from `LexiLocal/tauri-app/` into the new repo's root. Then these changes:
 
@@ -126,7 +126,7 @@ The Tauri app source moves verbatim from `LexiLocal/tauri-app/` into the new rep
       theme: String,               // future-proof; default "dark"
   }
   ```
-- Persist config in `%APPDATA%\CodexAstarte\config.json` (Windows) using `tauri-plugin-store` or plain JSON I/O.
+- Persist config in `%APPDATA%\Codex-Astartes\config.json` (Windows) using `tauri-plugin-store` or plain JSON I/O.
 - Add Rust commands `get_config`, `set_config` exposed to the frontend.
 - First-run flow: if no config exists, show a setup screen asking for the backend install directory. Save it.
 
@@ -160,7 +160,7 @@ The current UI is a 2×2 grid (Chat | Translate | REST API | Activity Log). Addi
 ### Distribution
 
 - **Backend:** unchanged. `./run.sh start` to run; `./run.sh install` is not in scope.
-- **Desktop:** `npm run tauri:build` produces `CodexAstarte.exe` and `CodexAstarte_<version>_x64-setup.exe` (NSIS). The installer creates Start Menu + Desktop shortcuts, same as today.
+- **Desktop:** `npm run tauri:build` produces `Codex-Astartes.exe` and `Codex-Astartes_<version>_x64-setup.exe` (NSIS). The installer creates Start Menu + Desktop shortcuts, same as today.
 
 ## Business rules
 
@@ -169,11 +169,11 @@ The current UI is a 2×2 grid (Chat | Translate | REST API | Activity Log). Addi
 3. The clipboard history is **session-only** by default (lost when app closes). Persistence is a future option, not in this change.
 4. The clipboard history stores **text only**. Images, files, and non-text formats are ignored. Maximum text size per entry: 32 KB. Items larger than that are dropped (with a notice in the dev console).
 5. Passwords and other secrets are not auto-detected/redacted in this change. The user is responsible for what they copy. (A future feature.)
-6. The desktop app stores its config in `%APPDATA%\CodexAstarte\` (Windows-standard per-user app data). No data leaves the machine.
+6. The desktop app stores its config in `%APPDATA%\Codex-Astartes\` (Windows-standard per-user app data). No data leaves the machine.
 
 ## Implications
 
-- **Breaking change for existing users of the current `.exe`.** Anyone who installed via the NSIS installer will need to reinstall from `CodexAstarte`. Mitigation: the old installer path keeps working until the user upgrades; README of `LexiLocal` clearly points to the new repo.
+- **Breaking change for existing users of the current `.exe`.** Anyone who installed via the NSIS installer will need to reinstall from `Codex-Astartes`. Mitigation: the old installer path keeps working until the user upgrades; README of `LexiLocal` clearly points to the new repo.
 - **The old desktop shortcuts on the user's machine (`LexiLocal UI.lnk`)** will continue to work after reinstall, because the install path doesn't change. They will be re-created by the new installer.
 - **The activity log middleware** stays in the backend. The desktop app will keep polling `/logs` exactly as today.
 - **CORS / firewall**: unchanged. Backend still binds `0.0.0.0:8000`. Desktop app talks to `localhost:8000` by default.
@@ -202,13 +202,13 @@ The current UI is a 2×2 grid (Chat | Translate | REST API | Activity Log). Addi
 ## Acceptance criteria (this change)
 
 1. `LexiLocal` repo contains no `tauri-app/` directory after the change.
-2. `CodexAstarte` repo at `Documents/Projects/CodexAstarte` builds successfully with `npm run tauri:build` and produces a working `.exe`.
+2. `Codex-Astartes` repo at `Documents/Projects/Codex-Astartes` builds successfully with `npm run tauri:build` and produces a working `.exe`.
 3. The desktop app, on first launch, shows a setup screen asking for the backend install directory. After configuring, it persists the path.
 4. The desktop app's Start/Stop buttons successfully start and stop the backend located at the configured path.
 5. The base URL is editable in the UI; changes persist across restarts.
 6. A new **Tools** tab is present and shows a **Clipboard history** panel with the last 10 text copies captured while the app was running, with timestamps.
 7. The clipboard panel offers "Copy back" (sends the item to the system clipboard), "Send to Chat" (fills the Chat input and switches tabs), and "Send to Translate" (fills the Translate input and switches tabs).
-8. `LexiLocal`'s README no longer references the desktop UI in detail; it links to `CodexAstarte`.
+8. `LexiLocal`'s README no longer references the desktop UI in detail; it links to `Codex-Astartes`.
 9. No backend code or API changes. All existing `curl` examples in `LexiLocal/README.md` still work unchanged.
 10. Both repos are independently git-versioned and pushed to GitHub.
 

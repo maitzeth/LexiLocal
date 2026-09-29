@@ -1,4 +1,4 @@
-# Design: Split the Tauri desktop app into its own repository (`CodexAstarte`)
+# Design: Split the Tauri desktop app into its own repository (`Codex-Astartes`)
 
 This document turns the [spec](./spec.md) into architectural decisions: how the shell mounts, how state flows, how the Rust and TypeScript sides communicate, and how files are organized. It is the blueprint the `apply` phase will follow.
 
@@ -304,7 +304,7 @@ Similar shape for the other commands. All return the updated `Config` so the fro
 ## 4. File layout (concrete, ready to create)
 
 ```
-Documents/Projects/CodexAstarte/
+Documents/Projects/Codex-Astartes/
 ├── .gitignore
 ├── README.md
 ├── package.json
@@ -441,8 +441,8 @@ The Tools section, when active, listens and updates. When inactive, events are d
 ## 8. Build & distribution
 
 - Dev: `npm run tauri:dev` — Vite serves on `localhost:1420`, Tauri opens a window pointing at it. Hot reload works for TS changes; Rust changes trigger rebuild + restart.
-- Build: `npm run tauri:build` — produces `CodexAstarte.exe` (portable) and `CodexAstarte_<ver>_x64-setup.exe` (NSIS).
-- Installer behavior: same as today — Start Menu + Desktop shortcuts named **CodexAstarte**.
+- Build: `npm run tauri:build` — produces `Codex-Astartes.exe` (portable) and `Codex-Astartes_<ver>_x64-setup.exe` (NSIS).
+- Installer behavior: same as today — Start Menu + Desktop shortcuts named **Codex-Astartes**.
 
 ## 9. Risks and how we mitigate them
 
@@ -460,7 +460,7 @@ The Tools section, when active, listens and updates. When inactive, events are d
 
 Following the spec's acceptance criteria in dependency order:
 
-1. Create `CodexAstarte` repo, move Tauri source. Verify `npm run tauri:build` produces a working `.exe` (AC #2).
+1. Create `Codex-Astartes` repo, move Tauri source. Verify `npm run tauri:build` produces a working `.exe` (AC #2).
 2. Strip `tauri-app/` and launcher scripts from `LexiLocal`. Update `LexiLocal/README.md` (AC #1, #8).
 3. Add `config.rs`, refactor `main.rs` to use it. Add `set_server_dir`, `set_server_url`, `set_theme`, `get_config` commands (AC #3, #5).
 4. Refactor `server.rs` to use `config.server.dir` instead of heuristic (AC #4).

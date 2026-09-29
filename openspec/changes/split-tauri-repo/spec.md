@@ -1,4 +1,4 @@
-# Spec: Split the Tauri desktop app into its own repository (`CodexAstarte`)
+# Spec: Split the Tauri desktop app into its own repository (`Codex-Astartes`)
 
 This spec turns the [proposal](./proposal.md) into a concrete, testable contract. It defines the file moves, the new persistent configuration, the Tauri commands, the frontend sections, and the exact acceptance checks.
 
@@ -25,12 +25,12 @@ The following paths are removed from the `LexiLocal` repo:
 - `README.md` (rewritten — see §6)
 - `openspec/` (SDD artifacts for this change and future ones)
 
-### 1.3 What gets created in `CodexAstarte`
+### 1.3 What gets created in `Codex-Astartes`
 
-The new repo at `C:\Users\andre\Documents\Projects\CodexAstarte\` is initialized as a fresh git repo and receives the contents of `tauri-app/` at its root (the `tauri-app/` prefix is dropped). Concretely:
+The new repo at `C:\Users\andre\Documents\Projects\Codex-Astartes\` is initialized as a fresh git repo and receives the contents of `tauri-app/` at its root (the `tauri-app/` prefix is dropped). Concretely:
 
 ```
-Documents/Projects/CodexAstarte/
+Documents/Projects/Codex-Astartes/
 ├── .gitignore            (Tauri/Vite/Rust-flavored)
 ├── README.md
 ├── package.json
@@ -67,7 +67,7 @@ Documents/Projects/CodexAstarte/
 ### 1.4 Git remotes
 
 - `LexiLocal`: existing remote `git@github.com:maitzeth/LexiLocal.git`. After the split, push the cleaned backend as a new commit on `master`.
-- `CodexAstarte`: new repo `git@github.com:maitzeth/CodexAstarte.git` (to be created on GitHub by the user; the local repo is pushed after creation).
+- `Codex-Astartes`: new repo `git@github.com:maitzeth/Codex-Astartes.git` (to be created on GitHub by the user; the local repo is pushed after creation).
 
 ## 2. Persistent configuration (`config.toml`)
 
@@ -76,17 +76,17 @@ Documents/Projects/CodexAstarte/
 `config.toml` lives in the **same directory as the executable**. For the NSIS-installed app, that is:
 
 ```
-%LocalAppData%\CodexAstarte\config.toml
+%LocalAppData%\Codex-Astartes\config.toml
 ```
 
-(The exact directory is whatever `std::env::current_exe().parent()` returns at runtime — i.e., next to `codexastarte.exe` or `CodexAstarte.exe` depending on the build.)
+(The exact directory is whatever `std::env::current_exe().parent()` returns at runtime — i.e., next to `codex-astartes.exe`, the binary produced by `tauri-build`.)
 
 If the file does not exist on startup, the app shows the setup screen (§4) and writes the file on save.
 
 ### 2.2 Schema (TOML)
 
 ```toml
-# CodexAstarte — persistent configuration
+# Codex-Astartes — persistent configuration
 # Edit through the UI; manual edits are also fine.
 
 [server]
@@ -187,7 +187,7 @@ Once configured, subsequent launches skip the setup screen unless the user clear
 
 ```
 ┌─────────────┬────────────────────────────────────────────────────┐
-│ CodexAstarte│ [selected section content]                         │
+│ Codex-Astartes│ [selected section content]                         │
 │ ● Online    │                                                    │
 │             │                                                    │
 │ 💬 Chat     │                                                    │
@@ -235,11 +235,11 @@ The toggle in the sidebar flips `<html data-theme="dark|light">`, which selects 
 - Add a "Desktop UI" section near the top:
 
   > A native Windows desktop UI for this backend lives in a separate repository:
-  > **[CodexAstarte](https://github.com/maitzeth/CodexAstarte)**. Build it with `npm run tauri:build` or download the installer from its releases.
+  > **[Codex-Astartes](https://github.com/maitzeth/Codex-Astartes)**. Build it with `npm run tauri:build` or download the installer from its releases.
 
 - Remove the now-obsolete `create-desktop-shortcut.ps1`, `toggle-server.ps1`, `launch-ui.bat` mentions.
 
-### 6.2 `CodexAstarte/README.md` (new)
+### 6.2 `Codex-Astartes/README.md` (new)
 
 Covers:
 
@@ -270,8 +270,8 @@ Covers:
 
 `tauri.conf.json`:
 
-- `bundle.productName` becomes `"CodexAstarte"` (was `"LexiLocal UI"`).
-- `bundle.identifier` becomes `"com.codexastarte.app"`.
+- `bundle.productName` becomes `"Codex-Astartes"` (was `"LexiLocal UI"`).
+- `bundle.identifier` becomes `"com.codex-astartes.app"`.
 - Capabilities updated to include `clipboard-manager:default` and `dialog:default`.
 
 ## 8. Capabilities and permissions
@@ -294,15 +294,15 @@ Covers:
 | # | Criterion | How verified |
 |---|---|---|
 | 1 | `LexiLocal` repo contains no `tauri-app/` | `find LexiLocal -name tauri-app -type d` returns nothing after the change. |
-| 2 | `CodexAstarte` builds and produces a working `.exe` | `npm run tauri:build` completes; running the produced installer creates the Start Menu + Desktop shortcuts. |
+| 2 | `Codex-Astartes` builds and produces a working `.exe` | `npm run tauri:build` completes; running the produced installer creates the Start Menu + Desktop shortcuts. |
 | 3 | First-launch setup screen | Delete `config.toml`; launch the app. Setup overlay appears; pick a valid backend dir; the main UI renders. |
 | 4 | Start/Stop buttons work | With config set, click **Start Server**: the Python server logs `Server running with PID …`. Click **Stop Server**: PID is gone. |
 | 5 | Base URL persists | Change URL in Settings; restart app; the new URL is shown in the sidebar status and is used by all sections. |
 | 6 | Tools tab + clipboard history | Copy 5 different things to the Windows clipboard; the Tools tab shows 5 entries with timestamps, most recent first. |
 | 7 | Clipboard actions | **Copy back** puts the item on the system clipboard. **→ Chat** fills the Chat textarea and switches tabs. **→ Translate** does the same for Translate. |
-| 8 | `LexiLocal/README.md` links to the desktop repo | `grep "CodexAstarte" LexiLocal/README.md` finds the link. |
+| 8 | `LexiLocal/README.md` links to the desktop repo | `grep "Codex-Astartes" LexiLocal/README.md` finds the link. |
 | 9 | No backend code changes | `diff` of `server.py`, `run.sh`, `requirements.txt` vs. `master@{1}` shows no changes. All curl examples still work. |
-| 10 | Both repos pushed | `git -C LexiLocal log` shows the split commit; `git -C CodexAstarte log` shows the initial commit. Both have a `master` branch tracking `origin/master`. |
+| 10 | Both repos pushed | `git -C LexiLocal log` shows the split commit; `git -C Codex-Astartes log` shows the initial commit. Both have a `master` branch tracking `origin/master`. |
 
 ## 10. Out of scope (explicit non-goals, restated)
 

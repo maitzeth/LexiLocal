@@ -3,8 +3,6 @@ Lightweight REST server backed by a local Ollama instance.
 Default model: qwen2.5:3b (good for EN<->ES translation and general Q&A).
 
 Endpoints:
-  POST /chat                      - legacy: simple prompt + optional system
-  POST /translate                 - legacy: EN<->ES translation helper
   POST /v1/chat/completions       - OpenAI-compatible (supports SSE streaming)
   GET  /v1/models                 - OpenAI-compatible model list
   GET  /health                    - liveness + Ollama reachability
@@ -38,7 +36,7 @@ SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
 
 # Paths whose bodies we want to capture in the activity log.
-LOGGED_PATHS = {"/chat", "/translate", "/v1/chat/completions"}
+LOGGED_PATHS = {"/v1/chat/completions"}
 # Paths we never record in the activity log (high-frequency, low-signal).
 IGNORED_PATHS = {"/health", "/logs", "/v1/models"}
 BODY_PREVIEW_CHARS = 240
@@ -246,19 +244,8 @@ async def access_log_middleware(request: Request, call_next):
 
 
 # ---------------------------------------------------------------------------
-# Legacy endpoints (kept for backward compatibility).
+# OpenAI-compatible endpoints.
 # ---------------------------------------------------------------------------
-
-
-class ChatRequest(BaseModel):
-    prompt: str = Field(..., min_length=1, description="User prompt")
-    system: str | None = Field(None, description="Optional system message")
-
-
-class TranslateRequest(BaseModel):
-    text: str = Field(..., min_length=1, description="Text to translate")
-    source: str = Field(..., pattern="^(en|es)$", description="Source language: en or es")
-    target: str = Field(..., pattern="^(en|es)$", description="Target language: en or es")
 
 
 class HealthResponse(BaseModel):
@@ -275,14 +262,6 @@ class LogEntry(BaseModel):
     status: int
     request_body: Optional[str] = None
     response_body: Optional[str] = None
-
-
-def ollama_generate(prompt: str, system: str | None = None) -> str:
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
-    return _ollama_chat_non_stream(OLLAMA_MODEL, messages)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -306,37 +285,6 @@ def get_logs(limit: int = 50):
     with _log_lock:
         entries = [e for e in _request_log if e["path"] not in IGNORED_PATHS][-limit:][::-1]
     return entries
-
-
-@app.post("/chat")
-def chat(req: ChatRequest):
-    answer = ollama_generate(req.prompt, system=req.system)
-    return {"answer": answer}
-
-
-@app.post("/translate")
-def translate(req: TranslateRequest):
-    if req.source == req.target:
-        raise HTTPException(status_code=400, detail="Source and target languages must differ.")
-
-    system = (
-        "You are a professional translator. "
-        "Return ONLY the translated text, with no explanations, notes, or extra formatting."
-    )
-    direction = f"{req.source.upper()} -> {req.target.upper()}"
-    prompt = f"Translate the following text from {direction}:\n\n{req.text}"
-
-    translated = ollama_generate(prompt, system=system)
-    return {
-        "translation": translated,
-        "source": req.source,
-        "target": req.target,
-    }
-
-
-# ---------------------------------------------------------------------------
-# OpenAI-compatible endpoints.
-# ---------------------------------------------------------------------------
 
 
 @app.get("/v1/models")

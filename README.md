@@ -338,30 +338,6 @@ const BASE_URL = "http://192.168.1.6:8000/v1";  // your host IP
 
 No other Spanify changes needed — its adapter already speaks this dialect.
 
-### Legacy endpoints (deprecated, still working)
-
-These pre-OpenAI endpoints are kept for backward compatibility. Prefer `/v1/chat/completions` for new code.
-
-#### `POST /chat`
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "Hello"}'
-```
-
-Response: `{ "answer": "..." }`. Optional `system` field.
-
-#### `POST /translate`
-
-```bash
-curl -X POST http://localhost:8000/translate \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Hello", "source": "en", "target": "es"}'
-```
-
-Response: `{ "translation": "...", "source": "en", "target": "es" }`.
-
 ### Operational endpoints
 
 #### `GET /health`

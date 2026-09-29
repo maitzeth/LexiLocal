@@ -60,11 +60,11 @@ print(resp.choices[0].message.content)
 - ⚡ Fast, local inference via Ollama
 - 🔌 **OpenAI-compatible API** (`/v1/chat/completions`, `/v1/models`)
 - 📡 **SSE streaming** for token-by-token responses
-- 🌐 REST API with chat, translate, health, logs, and model listing
-- 🖥️ Native Windows `.exe` UI (Tauri v2) with streaming output
+- 🌐 REST API for health, logs, and model listing
+- 📊 **Activity log middleware** with timestamps, client IPs, and request/response bodies
 - 🔧 Simple bash control script (`start`, `stop`, `status`, `port`, etc.)
-- 📊 Real-time activity log (timestamps, client IPs, request/response bodies)
-- 🔀 Works as a backend for [Spanify](https://github.com/maitzeth/Spanify) and any OpenAI-compatible client
+- 🔀 Drop-in backend for the [Codex-Astartes](https://github.com/maitzeth/Codex-Astartes) desktop app, [Spanify](https://github.com/maitzeth/Spanify), and any OpenAI-compatible client
+- 🛠️ Spec-driven development via [`openspec/`](openspec/)
 
 ---
 
@@ -93,11 +93,7 @@ The desktop UI lives in a separate repository: **[Codex-Astartes](https://github
 - Python 3.10 or newer
 - Git Bash (on Windows) or any Unix-like shell
 
-### UI (build from source)
-
-- Node.js + npm
-- Rust + Cargo
-- Visual Studio Build Tools with C++ workload (Windows)
+For the desktop UI, see **[Codex-Astartes](https://github.com/maitzeth/Codex-Astartes)**.
 
 ---
 
@@ -348,13 +344,20 @@ The native Windows desktop UI for this backend lives in a separate repository:
 
 **→ [maitzeth/Codex-Astartes](https://github.com/maitzeth/Codex-Astartes)**
 
-It's a Tauri v2 app (vanilla TS + Rust) that:
+A Tauri v2 app (vanilla TS + Rust) with:
 
-- Connects to this backend's OpenAI-compatible API.
-- Can start / stop the backend locally.
-- Provides chat, translate, REST API examples, and an activity log.
+- **Sidebar navigation** — Chat · Translate · Tools · REST API · Activity · Settings
+- **Chat & Translate** with SSE-streamed completions to `/v1/chat/completions`
+- **Tools → Clipboard history** — last 10 items copied to Windows, with Copy / Send to Chat / Send to Translate actions, persisted to `config.toml`
+- **REST API panel** with copyable curl examples for `/v1/models`, `/v1/chat/completions`, and SSE
+- **Activity Log** showing recent requests (timestamps, client IPs, REQ/RES bodies)
+- **Settings** for backend directory, base URL, and theme
+- **First-run setup screen** that points at your LexiLocal install dir
+- **Light/dark theme** toggle in the sidebar footer
 
-The full UI documentation, build instructions, and configuration live in the Codex-Astartes repo.
+Codex-Astartes can also **start and stop the backend locally** by spawning `bash <dir>/run.sh start|stop`.
+
+Full UI documentation, build instructions, and configuration live in the [Codex-Astartes repo](https://github.com/maitzeth/Codex-Astartes).
 
 ---
 

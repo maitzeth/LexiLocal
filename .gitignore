@@ -18,6 +18,9 @@ ENV/
 # Logs
 *.log
 
+# Server runtime files
+server.pid
+
 # Node.js
 node_modules/
 npm-debug.log*

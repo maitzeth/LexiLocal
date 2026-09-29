@@ -18,6 +18,8 @@ interface LogEntry {
   method: string;
   path: string;
   status: number;
+  request_body?: string | null;
+  response_body?: string | null;
 }
 
 function buildCurlExample(endpoint: string, method: string, body: string): string {
@@ -262,6 +264,12 @@ async function checkHealth() {
 }
 
 const seenLogKeys = new Set<string>();
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string)
+  );
+}
+
 async function fetchLogs() {
   try {
     const res = await fetch(`${baseUrl}/logs?limit=50`, { signal: AbortSignal.timeout(5000) });
@@ -271,28 +279,49 @@ async function fetchLogs() {
     const output = document.querySelector<HTMLDivElement>("#log-output")!;
     const autoScroll = document.querySelector<HTMLInputElement>("#auto-scroll")!;
 
-    // Entries are newest first; render top-down and prepend new ones at the top.
+    // Entries are newest first; append new ones at the bottom (auto-scroll reveals latest).
     for (const entry of entries) {
-      const key = `${entry.timestamp}-${entry.client_ip}-${entry.method}-${entry.path}-${entry.status}`;
+      const key = `${entry.timestamp}-${entry.client_ip}-${entry.method}-${entry.path}-${entry.status}-${entry.request_body ?? ""}-${entry.response_body ?? ""}`;
       if (seenLogKeys.has(key)) continue;
       seenLogKeys.add(key);
 
-      const line = document.createElement("div");
-      line.className = "log-line";
       const time = entry.timestamp.split("T")[1] || entry.timestamp;
       const statusClass = entry.status >= 500 ? "err" : entry.status >= 400 ? "warn" : "ok";
-      line.innerHTML = `
+
+      const entry_el = document.createElement("div");
+      entry_el.className = "log-entry";
+
+      const header = document.createElement("div");
+      header.className = "log-line";
+      header.innerHTML = `
         <span class="log-time">${time}</span>
         <span class="log-ip">${entry.client_ip}</span>
         <span class="log-method ${entry.method}">${entry.method}</span>
         <span class="log-path">${entry.path}</span>
         <span class="log-status ${statusClass}">${entry.status}</span>
       `;
-      output.appendChild(line);
+      entry_el.appendChild(header);
+
+      if (entry.request_body) {
+        const req = document.createElement("div");
+        req.className = "log-body log-body-req";
+        req.title = entry.request_body;
+        req.innerHTML = `<span class="log-body-label">REQ</span> ${escapeHtml(entry.request_body)}`;
+        entry_el.appendChild(req);
+      }
+      if (entry.response_body) {
+        const res = document.createElement("div");
+        res.className = "log-body log-body-res";
+        res.title = entry.response_body;
+        res.innerHTML = `<span class="log-body-label">RES</span> ${escapeHtml(entry.response_body)}`;
+        entry_el.appendChild(res);
+      }
+
+      output.appendChild(entry_el);
     }
 
-    // Trim DOM to last 200 lines for memory.
-    while (output.children.length > 200) {
+    // Trim DOM to last 100 entries for memory.
+    while (output.children.length > 100) {
       output.removeChild(output.firstChild!);
     }
 

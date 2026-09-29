@@ -20,7 +20,7 @@ Use it for:
 - [Quick Start](#quick-start)
 - [Server Usage](#server-usage)
 - [REST API](#rest-api)
-- [Native Windows UI](#native-windows-ui)
+- [Desktop UI (Codex-Astartes)](#desktop-ui-codex-astartes)
 - [Configuration](#configuration)
 - [Network Access (LAN)](#network-access-lan)
 - [Model Options](#model-options)
@@ -77,25 +77,11 @@ ollama-qwen-server/
 ├── requirements.txt          # Python dependencies
 ├── server.env                # Server configuration
 ├── server.env.example        # Configuration template
-├── launch-ui.bat             # Windows shortcut to open the UI
-├── launch-ui.ps1             # PowerShell shortcut to open the UI
-├── toggle-server.ps1         # Toggle server start/stop from desktop
-├── toggle-server.bat         # Batch wrapper for the toggle script
-├── create-desktop-shortcut.ps1 # Create desktop shortcuts
 ├── README.md                 # This file
-└── tauri-app/                # Native Windows UI (Tauri v2)
-    ├── package.json
-    ├── vite.config.ts
-    ├── index.html
-    ├── src/
-    │   ├── main.ts           # UI logic (uses /v1/chat/completions)
-    │   └── styles.css
-    └── src-tauri/
-        ├── Cargo.toml
-        ├── tauri.conf.json
-        ├── capabilities/
-        └── src/main.rs       # Rust backend (start/stop server)
+└── openspec/                 # SDD artifacts (spec-driven changes)
 ```
+
+The desktop UI lives in a separate repository: **[Codex-Astartes](https://github.com/maitzeth/Codex-Astartes)**.
 
 ---
 
@@ -145,19 +131,9 @@ The first run installs Python dependencies automatically.
 curl http://localhost:8000/v1/models
 ```
 
-### 5. Open the native UI (optional)
+### 5. (Optional) Install the native Windows UI
 
-Double-click:
-
-```
-launch-ui.bat
-```
-
-Or from PowerShell:
-
-```powershell
-.\launch-ui.ps1
-```
+The desktop UI lives in a separate repo: **[Codex-Astartes](https://github.com/maitzeth/Codex-Astartes)**. See [Desktop UI (Codex-Astartes)](#desktop-ui-codex-astartes) below.
 
 ---
 
@@ -366,62 +342,19 @@ curl http://localhost:8000/logs?limit=20
 
 ---
 
-## Native Windows UI
+## Desktop UI (Codex-Astartes)
 
-The Tauri v2 app provides a native Windows interface. It uses `/v1/chat/completions` with **SSE streaming**, so responses appear token by token in the UI.
+The native Windows desktop UI for this backend lives in a separate repository:
 
-### Run in development mode
+**→ [maitzeth/Codex-Astartes](https://github.com/maitzeth/Codex-Astartes)**
 
-```bash
-cd tauri-app
-npm install
-npm run tauri:dev
-```
+It's a Tauri v2 app (vanilla TS + Rust) that:
 
-### Build the production `.exe`
+- Connects to this backend's OpenAI-compatible API.
+- Can start / stop the backend locally.
+- Provides chat, translate, REST API examples, and an activity log.
 
-```bash
-cd tauri-app
-npm run tauri:build
-```
-
-After building, you will find:
-
-- **Portable executable:**
-  `tauri-app/src-tauri/target/release/ollama-qwen-ui.exe`
-
-- **Windows installer:**
-  `tauri-app/src-tauri/target/release/bundle/nsis/LexiLocal UI_1.0.0_x64-setup.exe`
-
-The installer creates:
-
-- A Start Menu shortcut: **LexiLocal UI**
-- A desktop shortcut: **LexiLocal UI**
-
-### Launch the built UI
-
-Use the shortcuts in the project root:
-
-```batch
-launch-ui.bat
-```
-
-Or from PowerShell:
-
-```powershell
-.\launch-ui.ps1
-```
-
-These set the `OLLAMA_QWEN_SERVER_DIR` environment variable automatically so the UI knows where the server project is located.
-
-### UI features
-
-- **Status indicator** (online/offline) with model name and Ollama URL
-- **Server controls** (Start / Stop) — spawns the Python server via Git Bash
-- **Chat panel** with model selector dropdown (populated from `/v1/models`) and SSE streaming output
-- **Translate panel** (EN ↔ ES) with SSE streaming
-- **REST API panel** with copyable curl examples for `/v1/models`, `/v1/chat/completions`, and SSE streaming
-- **Activity Log** showing recent requests with timestamps, client IPs, method, path, status, and truncated request/response bodies
+The full UI documentation, build instructions, and configuration live in the Codex-Astartes repo.
 
 ---
 
@@ -563,19 +496,19 @@ Pull the model manually:
 ollama pull qwen2.5:3b
 ```
 
-### UI cannot find the server directory
+### Codex-Astartes UI cannot find the server directory
 
-Set the environment variable before launching the UI:
+On first launch, Codex-Astartes shows a setup screen. Enter the absolute path to this repo (the directory that contains `run.sh`). The choice is persisted in `config.toml` next to the `.exe`.
+
+If you prefer to start the UI manually with the env var (legacy behavior):
 
 ```batch
 set OLLAMA_QWEN_SERVER_DIR=C:\path\to\ollama-qwen-server
 ```
 
-Or use the provided `launch-ui.bat` / `launch-ui.ps1` scripts.
+### Codex-Astartes start/stop buttons do not work
 
-### UI start/stop buttons do not work
-
-The UI uses Git Bash (`bash`) to run `run.sh`. Make sure Git Bash is installed and available in the system `PATH`.
+The UI spawns `bash <backend_dir>/run.sh start|stop`. Make sure Git Bash is installed and available in the system `PATH`.
 
 ### Port already in use
 

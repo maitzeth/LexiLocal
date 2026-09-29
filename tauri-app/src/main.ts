@@ -12,6 +12,14 @@ interface ServerStatus {
   error?: string;
 }
 
+function buildCurlExample(endpoint: string, method: string, body: string): string {
+  const url = `${baseUrl}${endpoint}`;
+  if (method === "GET") {
+    return `curl ${url}`;
+  }
+  return `curl -X ${method} ${url} \\\n  -H "Content-Type: application/json" \\\n  -d '${body}'`;
+}
+
 function render() {
   document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
     <header>
@@ -52,18 +60,72 @@ function render() {
         <button id="btn-translate">Translate</button>
         <div id="translate-output" class="output"></div>
       </section>
+      <section class="panel">
+        <h2>REST API</h2>
+        <p class="muted">Current server URL: <code id="api-base">${baseUrl}</code></p>
+        <p class="muted">For other machines on your LAN, replace <code>localhost</code> with this machine's local IP (e.g. <code>192.168.x.x</code>).</p>
+        <div class="examples">
+          <div class="example">
+            <div class="example-header">
+              <strong>Health check</strong>
+              <button class="copy-btn secondary" data-copy="health">Copy</button>
+            </div>
+            <pre id="ex-health"></pre>
+          </div>
+          <div class="example">
+            <div class="example-header">
+              <strong>Ask a question</strong>
+              <button class="copy-btn secondary" data-copy="chat">Copy</button>
+            </div>
+            <pre id="ex-chat"></pre>
+          </div>
+          <div class="example">
+            <div class="example-header">
+              <strong>Translate text</strong>
+              <button class="copy-btn secondary" data-copy="translate">Copy</button>
+            </div>
+            <pre id="ex-translate"></pre>
+          </div>
+        </div>
+      </section>
     </main>
   `;
 
   bindEvents();
+  refreshExamples();
   checkHealth();
   setInterval(checkHealth, 5000);
+}
+
+function refreshExamples() {
+  document.querySelector("#api-base")!.textContent = baseUrl;
+  document.querySelector("#ex-health")!.textContent = buildCurlExample("/health", "GET", "");
+  document.querySelector("#ex-chat")!.textContent = buildCurlExample(
+    "/chat",
+    "POST",
+    JSON.stringify({ prompt: "What is the capital of France?" })
+  );
+  document.querySelector("#ex-translate")!.textContent = buildCurlExample(
+    "/translate",
+    "POST",
+    JSON.stringify({ text: "Good morning, how are you?", source: "en", target: "es" })
+  );
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function bindEvents() {
   const baseUrlInput = document.querySelector<HTMLInputElement>("#base-url")!;
   baseUrlInput.addEventListener("change", () => {
     baseUrl = baseUrlInput.value.trim() || DEFAULT_BASE_URL;
+    refreshExamples();
     checkHealth();
   });
 
@@ -129,6 +191,19 @@ function bindEvents() {
     } catch (err) {
       output.textContent = `Error: ${err}`;
     }
+  });
+
+  // Copy buttons for REST examples
+  document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.copy!;
+      const pre = document.querySelector<HTMLPreElement>(`#ex-${key}`);
+      if (!pre) return;
+      const ok = await copyToClipboard(pre.textContent || "");
+      const original = btn.textContent;
+      btn.textContent = ok ? "Copied!" : "Failed";
+      setTimeout(() => (btn.textContent = original), 1500);
+    });
   });
 }
 

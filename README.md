@@ -328,6 +328,97 @@ SERVER_PORT=8000
 
 ---
 
+## Network Access (LAN)
+
+The server binds to `0.0.0.0` by default, so any device on your local network can reach it. Replace `localhost` with the host machine's local IP.
+
+### Find the host machine's local IP
+
+**Windows:**
+```powershell
+ipconfig
+```
+Look for `IPv4 Address` under your active adapter (e.g. `192.168.1.X`).
+
+**macOS / Linux:**
+```bash
+ifconfig | grep "inet "
+# or
+ip addr show
+```
+
+### Open the firewall (Windows, one-time, as Administrator)
+
+```powershell
+New-NetFirewallRule -DisplayName "LexiLocal Server 8000" `
+  -Direction Inbound -Protocol TCP -LocalPort 8000 `
+  -Action Allow -Profile Private
+```
+
+This only allows the port on private (LAN) networks, not public.
+
+### Call the API from another machine on the LAN
+
+Replace `<host-ip>` with the actual IP of the machine running the server (e.g. `192.168.1.6`).
+
+**curl:**
+```bash
+curl http://<host-ip>:8000/health
+
+curl -X POST http://<host-ip>:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Hello from another machine"}'
+```
+
+**Python:**
+```python
+import requests
+
+API = "http://<host-ip>:8000"
+
+r = requests.post(f"{API}/chat", json={"prompt": "Hi"})
+print(r.json()["answer"])
+
+r = requests.post(f"{API}/translate",
+                  json={"text": "Good morning", "source": "en", "target": "es"})
+print(r.json()["translation"])
+```
+
+**JavaScript (browser / Node):**
+```javascript
+const API = "http://<host-ip>:8000";
+
+await fetch(`${API}/chat`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ prompt: "Hello" })
+});
+```
+
+**PowerShell:**
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://<host-ip>:8000/chat" `
+  -ContentType "application/json" `
+  -Body '{"prompt":"Hello"}'
+```
+
+### Point the desktop UI at a remote server
+
+In the UI, change the URL field (top right) from `http://localhost:8000` to `http://<host-ip>:8000`. The status indicator and all features will use that URL.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Connection refused | Make sure the server is running: `./run.sh status` |
+| Timeout / unreachable | Open the firewall rule (see above) and confirm both machines are on the same network/subnet |
+| Works from same machine, not from others | Confirm `SERVER_HOST=0.0.0.0` in `server.env` |
+| Works, but response is blocked | The server already sends CORS headers (`*`), so web clients should be fine |
+
+> **Security note:** The server has no authentication. Anyone on your LAN can call it. For production use, put it behind a reverse proxy with auth (nginx, Caddy, etc.).
+
+---
+
 ## Model Options
 
 The `qwen2.5` family works well for translation and general Q&A.

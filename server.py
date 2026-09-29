@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 
 import requests
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
@@ -59,6 +60,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Ollama Qwen2.5 Server", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class ChatRequest(BaseModel):

@@ -63,20 +63,20 @@ cmd_start() {
     echo "Starting Ollama Qwen2.5 server on $SERVER_HOST:$SERVER_PORT..."
     echo "Model: $OLLAMA_MODEL | Ollama: $OLLAMA_HOST"
 
-    nohup "$py" server.py > "$LOG_FILE" 2>&1 &
-    local pid=$!
-    echo $pid > "$PID_FILE"
-
-    # Wait briefly and confirm it stayed up
-    sleep 2
-    if kill -0 "$pid" 2>/dev/null; then
-        echo "Server running with PID $pid. Logs: $LOG_FILE"
-        echo "Health check: http://$SERVER_HOST:$SERVER_PORT/health"
-    else
+    # Delegate to start.py — it uses the Windows subprocess API to spawn
+    # server.py detached and write the real Python PID to server.pid.
+    # Git Bash on Windows shims 'nohup ... &' in a way that makes $! return
+    # a bash subshell PID, not python's PID. start.py bypasses that.
+    if ! "$py" start.py; then
         echo "Server failed to start. Check logs: $LOG_FILE" >&2
         rm -f "$PID_FILE"
         exit 1
     fi
+
+    local pid
+    pid=$(cat "$PID_FILE" 2>/dev/null || echo "")
+    echo "Server running with PID $pid. Logs: $LOG_FILE"
+    echo "Health check: http://$SERVER_HOST:$SERVER_PORT/health"
 }
 
 cmd_stop() {
@@ -86,9 +86,9 @@ cmd_stop() {
     fi
     local pid
     pid=$(cat "$PID_FILE")
-    if kill -0 "$pid" 2>/dev/null; then
+    # Use Windows taskkill since the PID is a Windows PID, not a bash subshell.
+    if taskkill //PID "$pid" //T //F >/dev/null 2>&1; then
         echo "Stopping server (PID $pid)..."
-        kill "$pid"
         rm -f "$PID_FILE"
         echo "Stopped."
     else

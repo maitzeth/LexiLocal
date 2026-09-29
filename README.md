@@ -1,17 +1,19 @@
-# Ollama Qwen2.5 REST Server + Native Windows UI
+# LexiLocal
 
-A lightweight, self-hosted REST API server backed by [Ollama](https://ollama.com) and the `qwen2.5` model family. Includes a native Windows desktop UI built with [Tauri v2](https://v2.tauri.app/).
+A lightweight, self-hosted REST API server backed by [Ollama](https://ollama.com) and the `qwen2.5` model family. Exposes an **OpenAI-compatible API** so any standard client (Spanify, OpenAI SDK, LangChain, Vercel AI SDK, etc.) can use it as a drop-in backend. Includes a native Windows desktop UI built with [Tauri v2](https://v2.tauri.app/).
 
 Use it for:
 
 - General chat / Q&A through a REST API
 - English ↔ Spanish translation
+- Streaming responses (SSE) like the OpenAI API
 - Local, offline AI inference (no cloud required)
 
 ---
 
 ## Table of Contents
 
+- [Why OpenAI-compatible?](#why-openai-compatible)
 - [Features](#features)
 - [Project Structure](#project-structure)
 - [Requirements](#requirements)
@@ -20,18 +22,49 @@ Use it for:
 - [REST API](#rest-api)
 - [Native Windows UI](#native-windows-ui)
 - [Configuration](#configuration)
+- [Network Access (LAN)](#network-access-lan)
 - [Model Options](#model-options)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## Why OpenAI-compatible?
+
+The server speaks the **OpenAI Chat Completions format** at `/v1/chat/completions` and `/v1/models`. This was a deliberate choice over a custom REST shape. Reasons:
+
+| Gain | What it means |
+|---|---|
+| **Ecosystem compatibility** | Any tool that speaks OpenAI works against LexiLocal — the official `openai` SDK (Python/JS/Go/etc.), LangChain, LlamaIndex, Vercel AI SDK, Continue.dev, Aider, Postman, Bruno, and your own Spanify app. |
+| **Drop-in replacement** | Swap Ollama for Groq, OpenRouter, Together, or OpenAI later by changing the `base_url` in your client. Zero code changes. |
+| **Future-proofing** | The OpenAI chat-completions format is the de facto industry standard. New tools adopt it by default. |
+| **Custom logic on top** | LexiLocal keeps all the advantages of a custom server — CORS, activity logging, model filtering, future auth, request inspection — while speaking a standard wire format on the outside. |
+| **Streaming for free** | SSE streaming is part of the spec, so any OpenAI-compatible client gets token-by-token responses with no extra work. |
+
+Concretely: with LexiLocal running on `http://192.168.1.6:8000`, this Python code works as-is:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://192.168.1.6:8000/v1", api_key="not-needed")
+resp = client.chat.completions.create(
+    model="qwen2.5:7b",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(resp.choices[0].message.content)
+```
 
 ---
 
 ## Features
 
 - ⚡ Fast, local inference via Ollama
-- 🌐 REST API for chat and translation
-- 🖥️ Native Windows `.exe` UI (Tauri v2)
+- 🔌 **OpenAI-compatible API** (`/v1/chat/completions`, `/v1/models`)
+- 📡 **SSE streaming** for token-by-token responses
+- 🌐 REST API with chat, translate, health, logs, and model listing
+- 🖥️ Native Windows `.exe` UI (Tauri v2) with streaming output
 - 🔧 Simple bash control script (`start`, `stop`, `status`, `port`, etc.)
-- 📝 Easy model switching (`qwen2.5:1.8b`, `qwen2.5:3b`, `qwen2.5:7b`, ...)
+- 📊 Real-time activity log (timestamps, client IPs, request/response bodies)
+- 🔀 Works as a backend for [Spanify](https://github.com/maitzeth/Spanify) and any OpenAI-compatible client
 
 ---
 
@@ -46,14 +79,17 @@ ollama-qwen-server/
 ├── server.env.example        # Configuration template
 ├── launch-ui.bat             # Windows shortcut to open the UI
 ├── launch-ui.ps1             # PowerShell shortcut to open the UI
+├── toggle-server.ps1         # Toggle server start/stop from desktop
+├── toggle-server.bat         # Batch wrapper for the toggle script
+├── create-desktop-shortcut.ps1 # Create desktop shortcuts
 ├── README.md                 # This file
-└── tauri-app/                # Native Windows UI
+└── tauri-app/                # Native Windows UI (Tauri v2)
     ├── package.json
     ├── vite.config.ts
     ├── index.html
     ├── src/
-    │   ├── main.ts           # UI logic
-    │   └── styles.css        # UI styles
+    │   ├── main.ts           # UI logic (uses /v1/chat/completions)
+    │   └── styles.css
     └── src-tauri/
         ├── Cargo.toml
         ├── tauri.conf.json
@@ -103,10 +139,10 @@ ollama pull qwen2.5:3b
 
 The first run installs Python dependencies automatically.
 
-### 4. Test the API
+### 4. Test the API (OpenAI-compatible)
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8000/v1/models
 ```
 
 ### 5. Open the native UI (optional)
@@ -156,15 +192,185 @@ The `run.sh` script is the easiest way to control the server.
 
 The server exposes a REST API on `http://localhost:8000` by default.
 
-### `GET /health`
+### OpenAI-compatible endpoints
 
-Check if the server and Ollama are reachable.
+These are the primary, recommended endpoints. They follow the [OpenAI Chat Completions API](https://platform.openai.com/docs/api-reference/chat) spec.
+
+#### `GET /v1/models`
+
+List available models (proxied from Ollama).
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+**Response:**
+
+```json
+{
+  "object": "list",
+  "data": [
+    { "id": "qwen2.5:3b", "object": "model", "created": 1790645725, "owned_by": "ollama" },
+    { "id": "qwen2.5:7b", "object": "model", "created": 1790645725, "owned_by": "ollama" }
+  ]
+}
+```
+
+#### `POST /v1/chat/completions`
+
+Chat completion. Accepts an OpenAI-format request with `messages` (array of `{role, content}`), `model`, optional `temperature`, `max_tokens`, and `stream`.
+
+**Non-streaming:**
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen2.5:3b",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "What is the capital of France?"}
+    ],
+    "stream": false
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "created": 1790645725,
+  "model": "qwen2.5:3b",
+  "choices": [
+    {
+      "index": 0,
+      "message": { "role": "assistant", "content": "Paris." },
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+**Streaming (SSE):**
+
+```bash
+curl -N -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen2.5:3b",
+    "messages": [{"role": "user", "content": "Count to 5"}],
+    "stream": true
+  }'
+```
+
+Tokens arrive as `data: {...}` SSE events:
+
+```
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant"}}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":"One"}}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","choices":[{"delta":{"content":", two"}}]}
+
+...
+
+data: [DONE]
+```
+
+### Python client (OpenAI SDK)
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="not-needed",  # server ignores it
+)
+
+resp = client.chat.completions.create(
+    model="qwen2.5:3b",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(resp.choices[0].message.content)
+```
+
+**Streaming with the SDK:**
+
+```python
+stream = client.chat.completions.create(
+    model="qwen2.5:3b",
+    messages=[{"role": "user", "content": "Tell me a story"}],
+    stream=True,
+)
+for chunk in stream:
+    content = chunk.choices[0].delta.content
+    if content:
+        print(content, end="", flush=True)
+```
+
+### JavaScript client (OpenAI SDK)
+
+```javascript
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "not-needed",
+});
+
+const resp = await client.chat.completions.create({
+  model: "qwen2.5:3b",
+  messages: [{ role: "user", content: "Hello" }],
+});
+console.log(resp.choices[0].message.content);
+```
+
+### Using with Spanify
+
+Point Spanify's Ollama adapter at LexiLocal by editing one line:
+
+```ts
+// In Spanify: src/lib/providers/ollama.ts
+const BASE_URL = "http://192.168.1.6:8000/v1";  // your host IP
+```
+
+No other Spanify changes needed — its adapter already speaks this dialect.
+
+### Legacy endpoints (deprecated, still working)
+
+These pre-OpenAI endpoints are kept for backward compatibility. Prefer `/v1/chat/completions` for new code.
+
+#### `POST /chat`
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Hello"}'
+```
+
+Response: `{ "answer": "..." }`. Optional `system` field.
+
+#### `POST /translate`
+
+```bash
+curl -X POST http://localhost:8000/translate \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello", "source": "en", "target": "es"}'
+```
+
+Response: `{ "translation": "...", "source": "en", "target": "es" }`.
+
+### Operational endpoints
+
+#### `GET /health`
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-**Response:**
+Response:
 
 ```json
 {
@@ -174,94 +380,19 @@ curl http://localhost:8000/health
 }
 ```
 
-### `POST /chat`
+#### `GET /logs`
 
-Send a prompt and get a response.
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "What is the capital of Spain?"}'
-```
-
-**Response:**
-
-```json
-{
-  "answer": "The capital of Spain is Madrid."
-}
-```
-
-Optional `system` message:
+Recent activity log (timestamps, client IPs, request/response bodies). `/health` and `/logs` themselves are filtered out to keep the output clean.
 
 ```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Hello",
-    "system": "You are a helpful assistant. Answer in Spanish."
-  }'
-```
-
-### `POST /translate`
-
-Translate text between English and Spanish.
-
-```bash
-curl -X POST http://localhost:8000/translate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Hello, how are you today?",
-    "source": "en",
-    "target": "es"
-  }'
-```
-
-**Response:**
-
-```json
-{
-  "translation": "Hola, ¿cómo estás hoy?",
-  "source": "en",
-  "target": "es"
-}
-```
-
-Supported language pairs: `en → es` and `es → en`.
-
-### Python client example
-
-```python
-import requests
-
-response = requests.post(
-    "http://localhost:8000/chat",
-    json={"prompt": "Explain recursion in one sentence."}
-)
-print(response.json()["answer"])
-```
-
-### JavaScript client example
-
-```javascript
-const res = await fetch("http://localhost:8000/translate", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    text: "The weather is nice today.",
-    source: "en",
-    target: "es",
-  }),
-});
-const data = await res.json();
-console.log(data.translation);
+curl http://localhost:8000/logs?limit=20
 ```
 
 ---
 
 ## Native Windows UI
 
-The Tauri app provides a native Windows interface for the server.
+The Tauri v2 app provides a native Windows interface. It uses `/v1/chat/completions` with **SSE streaming**, so responses appear token by token in the UI.
 
 ### Run in development mode
 
@@ -287,6 +418,7 @@ After building, you will find:
   `tauri-app/src-tauri/target/release/bundle/nsis/LexiLocal UI_1.0.0_x64-setup.exe`
 
 The installer creates:
+
 - A Start Menu shortcut: **LexiLocal UI**
 - A desktop shortcut: **LexiLocal UI**
 
@@ -306,6 +438,15 @@ Or from PowerShell:
 
 These set the `OLLAMA_QWEN_SERVER_DIR` environment variable automatically so the UI knows where the server project is located.
 
+### UI features
+
+- **Status indicator** (online/offline) with model name and Ollama URL
+- **Server controls** (Start / Stop) — spawns the Python server via Git Bash
+- **Chat panel** with model selector dropdown (populated from `/v1/models`) and SSE streaming output
+- **Translate panel** (EN ↔ ES) with SSE streaming
+- **REST API panel** with copyable curl examples for `/v1/models`, `/v1/chat/completions`, and SSE streaming
+- **Activity Log** showing recent requests with timestamps, client IPs, method, path, status, and truncated request/response bodies
+
 ---
 
 ## Configuration
@@ -322,7 +463,7 @@ SERVER_PORT=8000
 | Variable | Description |
 |----------|-------------|
 | `OLLAMA_HOST` | URL of the running Ollama instance |
-| `OLLAMA_MODEL` | Model name to use (must be available in Ollama) |
+| `OLLAMA_MODEL` | Default model name when client omits `model` |
 | `SERVER_HOST` | Interface to bind the REST server to |
 | `SERVER_PORT` | Port for the REST server |
 
@@ -355,56 +496,47 @@ New-NetFirewallRule -DisplayName "LexiLocal Server 8000" `
   -Action Allow -Profile Private
 ```
 
-This only allows the port on private (LAN) networks, not public.
-
 ### Call the API from another machine on the LAN
 
-Replace `<host-ip>` with the actual IP of the machine running the server (e.g. `192.168.1.6`).
+Replace `<host-ip>` with the actual IP of the machine running the server.
+
+**OpenAI SDK (Python):**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://<host-ip>:8000/v1", api_key="not-needed")
+resp = client.chat.completions.create(
+    model="qwen2.5:3b",
+    messages=[{"role": "user", "content": "Hello from another machine"}],
+)
+print(resp.choices[0].message.content)
+```
 
 **curl:**
+
 ```bash
-curl http://<host-ip>:8000/health
+curl http://<host-ip>:8000/v1/models
 
-curl -X POST http://<host-ip>:8000/chat \
+curl -X POST http://<host-ip>:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "Hello from another machine"}'
-```
-
-**Python:**
-```python
-import requests
-
-API = "http://<host-ip>:8000"
-
-r = requests.post(f"{API}/chat", json={"prompt": "Hi"})
-print(r.json()["answer"])
-
-r = requests.post(f"{API}/translate",
-                  json={"text": "Good morning", "source": "en", "target": "es"})
-print(r.json()["translation"])
-```
-
-**JavaScript (browser / Node):**
-```javascript
-const API = "http://<host-ip>:8000";
-
-await fetch(`${API}/chat`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ prompt: "Hello" })
-});
+  -d '{
+    "model": "qwen2.5:3b",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
 ```
 
 **PowerShell:**
+
 ```powershell
-Invoke-RestMethod -Method Post -Uri "http://<host-ip>:8000/chat" `
+Invoke-RestMethod -Method Post -Uri "http://<host-ip>:8000/v1/chat/completions" `
   -ContentType "application/json" `
-  -Body '{"prompt":"Hello"}'
+  -Body '{"model":"qwen2.5:3b","messages":[{"role":"user","content":"Hi"}]}'
 ```
 
 ### Point the desktop UI at a remote server
 
-In the UI, change the URL field (top right) from `http://localhost:8000` to `http://<host-ip>:8000`. The status indicator and all features will use that URL.
+In the UI, change the URL field (top right) from `http://localhost:8000` to `http://<host-ip>:8000`. All features (chat, translate, model list, logs) will use that URL.
 
 ### Troubleshooting
 
@@ -413,7 +545,7 @@ In the UI, change the URL field (top right) from `http://localhost:8000` to `htt
 | Connection refused | Make sure the server is running: `./run.sh status` |
 | Timeout / unreachable | Open the firewall rule (see above) and confirm both machines are on the same network/subnet |
 | Works from same machine, not from others | Confirm `SERVER_HOST=0.0.0.0` in `server.env` |
-| Works, but response is blocked | The server already sends CORS headers (`*`), so web clients should be fine |
+| Works, but response is blocked | The server sends CORS headers (`*`), so web clients should be fine |
 
 > **Security note:** The server has no authentication. Anyone on your LAN can call it. For production use, put it behind a reverse proxy with auth (nginx, Caddy, etc.).
 
@@ -429,8 +561,9 @@ The `qwen2.5` family works well for translation and general Q&A.
 | `qwen2.5:3b` | ~1.9 GB | **Default**: good balance of speed and quality |
 | `qwen2.5:7b` | ~4.7 GB | Higher quality, requires more RAM/VRAM |
 | `qwen2.5-coder:3b` | ~2 GB | Optimized for code-related tasks |
+| `qwen2.5:14b` | ~9 GB | Best quality, needs ~12 GB RAM |
 
-Change the model in `server.env` and restart the server. Download a new model with:
+Change the model in `server.env` (default) or per-request via the `model` field in `/v1/chat/completions`. Download a new model with:
 
 ```bash
 ollama pull qwen2.5:7b
@@ -476,6 +609,12 @@ Change the port:
 ./run.sh port 8080
 ./run.sh restart
 ```
+
+### UI shows "Offline" or "Failed to fetch"
+
+1. Check the server is running: `./run.sh status` and `curl http://localhost:8000/health`
+2. If running from another machine, check the URL field in the UI matches the host IP
+3. Open the firewall rule for port 8000 on private networks
 
 ---
 

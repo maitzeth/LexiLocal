@@ -6,10 +6,14 @@ Default model: qwen2.5:3b (good for EN<->ES translation and general Q&A).
 import os
 import sys
 import logging
+import threading
+from collections import deque
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import List
 
 import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -21,6 +25,34 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
+
+# In-memory ring buffer of recent requests (timestamp, client IP, method, path, status).
+LOG_MAX_ENTRIES = 200
+_request_log: deque = deque(maxlen=LOG_MAX_ENTRIES)
+_log_lock = threading.Lock()
+
+
+def _record_request(client_ip: str, method: str, path: str, status_code: int) -> None:
+    entry = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "client_ip": client_ip,
+        "method": method,
+        "path": path,
+        "status": status_code,
+    }
+    with _log_lock:
+        _request_log.append(entry)
+
+
+def _client_ip(request: Request) -> str:
+    # Honour common proxy headers when present, else fall back to the socket peer.
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real = request.headers.get("x-real-ip")
+    if real:
+        return real.strip()
+    return request.client.host if request.client else "unknown"
 
 
 def ollama_generate(prompt: str, system: str | None = None, stream: bool = False) -> str:
@@ -69,6 +101,14 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def access_log_middleware(request: Request, call_next):
+    client_ip = _client_ip(request)
+    response = await call_next(request)
+    _record_request(client_ip, request.method, request.url.path, response.status_code)
+    return response
+
+
 class ChatRequest(BaseModel):
     prompt: str = Field(..., min_length=1, description="User prompt")
     system: str | None = Field(None, description="Optional system message")
@@ -86,6 +126,14 @@ class HealthResponse(BaseModel):
     model: str
 
 
+class LogEntry(BaseModel):
+    timestamp: str
+    client_ip: str
+    method: str
+    path: str
+    status: int
+
+
 @app.get("/health", response_model=HealthResponse)
 def health():
     ollama_ok = False
@@ -100,6 +148,14 @@ def health():
         ollama_host=OLLAMA_HOST,
         model=OLLAMA_MODEL,
     )
+
+
+@app.get("/logs", response_model=List[LogEntry])
+def get_logs(limit: int = 50):
+    """Return the most recent request log entries (newest first)."""
+    with _log_lock:
+        entries = list(_request_log)[-limit:][::-1]
+    return entries
 
 
 @app.post("/chat")

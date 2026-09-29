@@ -12,6 +12,14 @@ interface ServerStatus {
   error?: string;
 }
 
+interface LogEntry {
+  timestamp: string;
+  client_ip: string;
+  method: string;
+  path: string;
+  status: number;
+}
+
 function buildCurlExample(endpoint: string, method: string, body: string): string {
   const url = `${baseUrl}${endpoint}`;
   if (method === "GET") {
@@ -88,6 +96,17 @@ function render() {
           </div>
         </div>
       </section>
+      <section class="panel">
+        <h2>Activity Log</h2>
+        <div class="log-controls">
+          <button id="btn-clear-log" class="secondary">Clear</button>
+          <label class="muted">
+            <input type="checkbox" id="auto-scroll" checked /> Auto-scroll
+          </label>
+          <span id="log-count" class="muted"></span>
+        </div>
+        <div id="log-output" class="log-output"></div>
+      </section>
     </main>
   `;
 
@@ -95,6 +114,8 @@ function render() {
   refreshExamples();
   checkHealth();
   setInterval(checkHealth, 5000);
+  fetchLogs();
+  setInterval(fetchLogs, 2000);
 }
 
 function refreshExamples() {
@@ -193,7 +214,6 @@ function bindEvents() {
     }
   });
 
-  // Copy buttons for REST examples
   document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const key = btn.dataset.copy!;
@@ -204,6 +224,11 @@ function bindEvents() {
       btn.textContent = ok ? "Copied!" : "Failed";
       setTimeout(() => (btn.textContent = original), 1500);
     });
+  });
+
+  document.querySelector("#btn-clear-log")!.addEventListener("click", () => {
+    document.querySelector("#log-output")!.innerHTML = "";
+    document.querySelector("#log-count")!.textContent = "";
   });
 }
 
@@ -233,6 +258,51 @@ async function checkHealth() {
     });
   } catch (err) {
     updateStatus({ running: false, error: String(err) });
+  }
+}
+
+const seenLogKeys = new Set<string>();
+async function fetchLogs() {
+  try {
+    const res = await fetch(`${baseUrl}/logs?limit=50`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return;
+    const entries = (await res.json()) as LogEntry[];
+
+    const output = document.querySelector<HTMLDivElement>("#log-output")!;
+    const autoScroll = document.querySelector<HTMLInputElement>("#auto-scroll")!;
+
+    // Entries are newest first; render top-down and prepend new ones at the top.
+    for (const entry of entries) {
+      const key = `${entry.timestamp}-${entry.client_ip}-${entry.method}-${entry.path}-${entry.status}`;
+      if (seenLogKeys.has(key)) continue;
+      seenLogKeys.add(key);
+
+      const line = document.createElement("div");
+      line.className = "log-line";
+      const time = entry.timestamp.split("T")[1] || entry.timestamp;
+      const statusClass = entry.status >= 500 ? "err" : entry.status >= 400 ? "warn" : "ok";
+      line.innerHTML = `
+        <span class="log-time">${time}</span>
+        <span class="log-ip">${entry.client_ip}</span>
+        <span class="log-method ${entry.method}">${entry.method}</span>
+        <span class="log-path">${entry.path}</span>
+        <span class="log-status ${statusClass}">${entry.status}</span>
+      `;
+      output.appendChild(line);
+    }
+
+    // Trim DOM to last 200 lines for memory.
+    while (output.children.length > 200) {
+      output.removeChild(output.firstChild!);
+    }
+
+    document.querySelector("#log-count")!.textContent = `${entries.length} recent request(s)`;
+
+    if (autoScroll.checked) {
+      output.scrollTop = output.scrollHeight;
+    }
+  } catch {
+    // Server unreachable; ignore silently.
   }
 }
 

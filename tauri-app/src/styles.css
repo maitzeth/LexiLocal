@@ -68,6 +68,7 @@ main {
   flex: 1;
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
   gap: 16px;
   padding: 16px;
   overflow: hidden;
@@ -240,4 +241,90 @@ code {
   border-radius: 4px;
   font-size: 0.9em;
   color: var(--accent);
+}
+
+.log-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.log-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.log-output {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  overflow: auto;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-line {
+  display: grid;
+  grid-template-columns: 80px 130px 60px 1fr 50px;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+}
+
+.log-line:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: var(--muted);
+}
+
+.log-ip {
+  color: var(--accent);
+}
+
+.log-method {
+  font-weight: 700;
+}
+
+.log-method.GET {
+  color: #4ade80;
+}
+
+.log-method.POST {
+  color: #38bdf8;
+}
+
+.log-method.OPTIONS {
+  color: #94a3b8;
+}
+
+.log-path {
+  color: var(--text);
+  word-break: break-all;
+}
+
+.log-status {
+  text-align: right;
+  font-weight: 600;
+}
+
+.log-status.ok {
+  color: #4ade80;
+}
+
+.log-status.warn {
+  color: #fbbf24;
+}
+
+.log-status.err {
+  color: var(--danger);
 }

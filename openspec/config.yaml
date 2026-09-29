@@ -1,0 +1,12 @@
+# OpenSpec / SDD configuration for LexiLocal
+# Preflight session choices (confirmed by user):
+#   execution_mode:     interactive
+#   artifact_store:     openspec
+#   chained_pr:         auto-forecast
+#   review_budget:      400
+
+project: LexiLocal
+artifact_store: openspec
+execution_mode: interactive
+review_budget_lines: 400
+chained_pr_strategy: auto-forecast

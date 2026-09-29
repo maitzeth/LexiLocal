@@ -101,6 +101,7 @@ function bindEvents() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
+        signal: AbortSignal.timeout(120000),
       });
       const data = await res.json();
       output.textContent = data.answer || JSON.stringify(data, null, 2);
@@ -121,6 +122,7 @@ function bindEvents() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, source, target }),
+        signal: AbortSignal.timeout(120000),
       });
       const data = await res.json();
       output.textContent = data.translation || JSON.stringify(data, null, 2);
@@ -148,7 +150,7 @@ function updateStatus(status: ServerStatus) {
 
 async function checkHealth() {
   try {
-    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(10000) });
     const data = await res.json();
     updateStatus({
       running: res.ok && data.status === "ok",

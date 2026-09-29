@@ -4,6 +4,8 @@ import { invoke } from "@tauri-apps/api/core";
 const DEFAULT_BASE_URL = "http://localhost:8000";
 
 let baseUrl = DEFAULT_BASE_URL;
+let availableModels: string[] = [];
+let selectedModel = "";
 
 interface ServerStatus {
   running: boolean;
@@ -49,8 +51,12 @@ function render() {
     <main>
       <section class="panel">
         <h2>Chat</h2>
+        <div class="row">
+          <label class="muted">Model:</label>
+          <select id="chat-model"></select>
+          <button id="btn-chat">Send</button>
+        </div>
         <textarea id="chat-prompt" placeholder="Ask anything..."></textarea>
-        <button id="btn-chat">Send</button>
         <div id="chat-output" class="output"></div>
       </section>
       <section class="panel">
@@ -67,34 +73,36 @@ function render() {
             <option value="en">English</option>
           </select>
         </div>
-        <button id="btn-translate">Translate</button>
+        <div class="row">
+          <button id="btn-translate">Translate</button>
+        </div>
         <div id="translate-output" class="output"></div>
       </section>
       <section class="panel">
-        <h2>REST API</h2>
-        <p class="muted">Current server URL: <code id="api-base">${baseUrl}</code></p>
-        <p class="muted">For other machines on your LAN, replace <code>localhost</code> with this machine's local IP (e.g. <code>192.168.x.x</code>).</p>
+        <h2>REST API (OpenAI-compatible)</h2>
+        <p class="muted">Server: <code id="api-base">${baseUrl}</code></p>
+        <p class="muted">Compatible with the OpenAI Chat Completions API. Spanify can point to <code>${baseUrl}/v1</code>.</p>
         <div class="examples">
           <div class="example">
             <div class="example-header">
-              <strong>Health check</strong>
-              <button class="copy-btn secondary" data-copy="health">Copy</button>
+              <strong>List models</strong>
+              <button class="copy-btn secondary" data-copy="models">Copy</button>
             </div>
-            <pre id="ex-health"></pre>
+            <pre id="ex-models"></pre>
           </div>
           <div class="example">
             <div class="example-header">
-              <strong>Ask a question</strong>
+              <strong>Chat completion</strong>
               <button class="copy-btn secondary" data-copy="chat">Copy</button>
             </div>
             <pre id="ex-chat"></pre>
           </div>
           <div class="example">
             <div class="example-header">
-              <strong>Translate text</strong>
-              <button class="copy-btn secondary" data-copy="translate">Copy</button>
+              <strong>Streaming (SSE)</strong>
+              <button class="copy-btn secondary" data-copy="stream">Copy</button>
             </div>
-            <pre id="ex-translate"></pre>
+            <pre id="ex-stream"></pre>
           </div>
         </div>
       </section>
@@ -116,23 +124,44 @@ function render() {
   refreshExamples();
   checkHealth();
   setInterval(checkHealth, 5000);
+  fetchModels();
   fetchLogs();
   setInterval(fetchLogs, 2000);
 }
 
 function refreshExamples() {
   document.querySelector("#api-base")!.textContent = baseUrl;
-  document.querySelector("#ex-health")!.textContent = buildCurlExample("/health", "GET", "");
+  document.querySelector("#ex-models")!.textContent = buildCurlExample("/v1/models", "GET", "");
   document.querySelector("#ex-chat")!.textContent = buildCurlExample(
-    "/chat",
+    "/v1/chat/completions",
     "POST",
-    JSON.stringify({ prompt: "What is the capital of France?" })
+    JSON.stringify({
+      model: "qwen2.5:3b",
+      messages: [{ role: "user", content: "Hello" }],
+      stream: false,
+    })
   );
-  document.querySelector("#ex-translate")!.textContent = buildCurlExample(
-    "/translate",
-    "POST",
-    JSON.stringify({ text: "Good morning, how are you?", source: "en", target: "es" })
-  );
+  document.querySelector("#ex-stream")!.textContent = `curl -N ${baseUrl}/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"qwen2.5:3b","messages":[{"role":"user","content":"Hi"}],"stream":true}'`;
+}
+
+async function fetchModels() {
+  try {
+    const res = await fetch(`${baseUrl}/v1/models`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return;
+    const data = await res.json();
+    availableModels = (data.data || []).map((m: { id: string }) => m.id);
+    if (availableModels.length && !availableModels.includes(selectedModel)) {
+      selectedModel = availableModels[0];
+    }
+    const select = document.querySelector<HTMLSelectElement>("#chat-model");
+    if (select) {
+      select.innerHTML = availableModels
+        .map((m) => `<option value="${m}" ${m === selectedModel ? "selected" : ""}>${m}</option>`)
+        .join("");
+    }
+  } catch {
+    // Server unreachable; ignore.
+  }
 }
 
 async function copyToClipboard(text: string) {
@@ -150,6 +179,7 @@ function bindEvents() {
     baseUrl = baseUrlInput.value.trim() || DEFAULT_BASE_URL;
     refreshExamples();
     checkHealth();
+    fetchModels();
   });
 
   document.querySelector("#btn-check")!.addEventListener("click", checkHealth);
@@ -176,44 +206,42 @@ function bindEvents() {
     }
   });
 
-  document.querySelector("#btn-chat")!.addEventListener("click", async () => {
+  document.querySelector<HTMLSelectElement>("#chat-model")!.addEventListener("change", (e) => {
+    selectedModel = (e.target as HTMLSelectElement).value;
+  });
+
+  document.querySelector("#btn-chat")!.addEventListener("click", () => {
     const prompt = document.querySelector<HTMLTextAreaElement>("#chat-prompt")!.value.trim();
     if (!prompt) return;
     const output = document.querySelector<HTMLDivElement>("#chat-output")!;
+    output.textContent = "";
     output.innerHTML = `<div class="loading"><div class="spinner"></div>Thinking...</div>`;
-    try {
-      const res = await fetch(`${baseUrl}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-        signal: AbortSignal.timeout(120000),
-      });
-      const data = await res.json();
-      output.textContent = data.answer || JSON.stringify(data, null, 2);
-    } catch (err) {
-      output.textContent = `Error: ${err}`;
-    }
+    streamChatCompletion([{ role: "user", content: prompt }], output);
   });
 
-  document.querySelector("#btn-translate")!.addEventListener("click", async () => {
+  document.querySelector("#btn-translate")!.addEventListener("click", () => {
     const text = document.querySelector<HTMLTextAreaElement>("#translate-text")!.value.trim();
     if (!text) return;
     const source = document.querySelector<HTMLSelectElement>("#translate-source")!.value;
     const target = document.querySelector<HTMLSelectElement>("#translate-target")!.value;
-    const output = document.querySelector<HTMLDivElement>("#translate-output")!;
-    output.innerHTML = `<div class="loading"><div class="spinner"></div>Translating...</div>`;
-    try {
-      const res = await fetch(`${baseUrl}/translate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, source, target }),
-        signal: AbortSignal.timeout(120000),
-      });
-      const data = await res.json();
-      output.textContent = data.translation || JSON.stringify(data, null, 2);
-    } catch (err) {
-      output.textContent = `Error: ${err}`;
+    if (source === target) {
+      alert("Source and target must differ.");
+      return;
     }
+    const output = document.querySelector<HTMLDivElement>("#translate-output")!;
+    output.textContent = "";
+    output.innerHTML = `<div class="loading"><div class="spinner"></div>Translating...</div>`;
+    const direction = `${source.toUpperCase()} -> ${target.toUpperCase()}`;
+    const system =
+      "You are a professional translator. Return ONLY the translated text, with no explanations, notes, or extra formatting.";
+    const user = `Translate the following text from ${direction}:\n\n${text}`;
+    streamChatCompletion(
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      output
+    );
   });
 
   document.querySelectorAll<HTMLButtonElement>(".copy-btn").forEach((btn) => {
@@ -232,6 +260,67 @@ function bindEvents() {
     document.querySelector("#log-output")!.innerHTML = "";
     document.querySelector("#log-count")!.textContent = "";
   });
+}
+
+async function streamChatCompletion(messages: { role: string; content: string }[], output: HTMLDivElement) {
+  const model = selectedModel || availableModels[0] || "qwen2.5:3b";
+  try {
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, stream: true }),
+      signal: AbortSignal.timeout(300000),
+    });
+    if (!res.ok || !res.body) {
+      output.textContent = `Error: HTTP ${res.status}`;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    output.textContent = "";
+    let gotAnyContent = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop() ?? "";
+      for (const event of events) {
+        const lines = event.split("\n");
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const payload = trimmed.slice(5).trim();
+          if (payload === "[DONE]") {
+            return;
+          }
+          try {
+            const json = JSON.parse(payload);
+            const delta = json.choices?.[0]?.delta;
+            const content = delta?.content;
+            if (content) {
+              if (!gotAnyContent) {
+                output.textContent = "";
+                gotAnyContent = true;
+              }
+              output.textContent += content;
+            }
+          } catch {
+            // ignore malformed chunks
+          }
+        }
+      }
+    }
+
+    if (!gotAnyContent) {
+      output.textContent = "(empty response)";
+    }
+  } catch (err) {
+    output.textContent = `Error: ${err}`;
+  }
 }
 
 function updateStatus(status: ServerStatus) {
@@ -279,7 +368,6 @@ async function fetchLogs() {
     const output = document.querySelector<HTMLDivElement>("#log-output")!;
     const autoScroll = document.querySelector<HTMLInputElement>("#auto-scroll")!;
 
-    // Entries are newest first; append new ones at the bottom (auto-scroll reveals latest).
     for (const entry of entries) {
       const key = `${entry.timestamp}-${entry.client_ip}-${entry.method}-${entry.path}-${entry.status}-${entry.request_body ?? ""}-${entry.response_body ?? ""}`;
       if (seenLogKeys.has(key)) continue;
@@ -320,7 +408,6 @@ async function fetchLogs() {
       output.appendChild(entry_el);
     }
 
-    // Trim DOM to last 100 entries for memory.
     while (output.children.length > 100) {
       output.removeChild(output.firstChild!);
     }

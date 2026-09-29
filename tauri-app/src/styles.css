@@ -138,6 +138,15 @@ button:disabled {
   flex: 1;
 }
 
+.row select:not([style*="flex"]) {
+  flex: 0 0 auto;
+}
+
+#chat-model {
+  flex: 1;
+  min-width: 0;
+}
+
 .output {
   flex: 1;
   background: var(--bg);
